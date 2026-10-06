@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clinicflow
+      POSTGRES_USER: clinicflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clinicflow}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - clinicflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinicflow -d clinicflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgres://clinicflow:${POSTGRES_PASSWORD:-clinicflow}@db:5432/clinicflow
+      DATABASE_SSL: "false"
+      # Demo default only: override JWT_SECRET in a .env file next to this compose file.
+      JWT_SECRET: ${JWT_SECRET:-change-me-docker-demo-secret-please-override-0123456789}
+      JWT_EXPIRES_IN: 1d
+      CLIENT_URL: http://localhost:8080
+      CLINIC_TIMEZONE: Africa/Casablanca
+      SEED_DEMO_DATA: "true"
+      UPLOAD_DIR: /app/backend/uploads
+    volumes:
+      - clinicflow_uploads:/app/backend/uploads
+    ports:
+      - "127.0.0.1:5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  clinicflow_db_data:
+  clinicflow_uploads:
